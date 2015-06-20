@@ -288,28 +288,45 @@ class LycheeDAO:
             stamp = parse(photo.exif.takedate + ' ' + photo.exif.taketime).strftime('%s')
         except Exception:
             stamp = datetime.datetime.now().strftime('%s')
-
-        query = ("insert into lychee_photos " +
-                 "(id, url, public, type, width, height, " +
-                 "size, star, " +
-                 "thumbUrl, album,iso, aperture, make, " +
-                 "model, shutter, focal, takestamp, " +
-                 "description, title, checksum) " +
-                 "values " +
-                 "({}, '{}', {}, '{}', {}, {}, " +
-                 "'{}', {}, " +
-                 "'{}', '{}', '{}', '{}'," +
-                 " '{}', " +
-                 "'{}', '{}', '{}', '{}', " +
-                 "'{}', '{}', '{}')"
-                 ).format(photo.id, photo.url, self.conf["publicAlbum"], self._p(photo.type), photo.width, photo.height,
-                          photo.size, photo.star,
-                          photo.thumbUrl, photo.albumid, self._p(
-                     photo.exif.iso), self._p(
-                     photo.exif.aperture),
-            self._p(photo.exif.make),
-            photo.exif.model, self._p(photo.exif.shutter), self._p(photo.exif.focal), stamp,
-            self._p(photo.description), self._p(photo.originalname), photo.checksum)
+        
+        if photo.media_type == "photo":
+            query = ("insert into lychee_photos " + 
+                    "(id, url, public, type, width, height, " + 
+                    "size, star, " + 
+                    "thumbUrl, album,iso, aperture, make, " + 
+                    "model, shutter, focal, takestamp, " + 
+                    "description, title, checksum) " + 
+                    "values " + 
+                    "({}, '{}', {}, '{}', {}, {}, " + 
+                    "'{}', {}, " + 
+                    "'{}', '{}', '{}', '{}'," + 
+                    " '{}', " + 
+                    "'{}', '{}', '{}', '{}', " + 
+                    "'{}', '{}', '{}')").format(
+                            photo.id, photo.url, self.conf["publicAlbum"], self._p(photo.type), photo.width, photo.height, 
+                            photo.size, photo.star, 
+                            photo.thumbUrl, photo.albumid, self._p(photo.exif.iso), self._p(photo.exif.aperture), self._p(photo.exif.make), 
+                            photo.exif.model, self._p(photo.exif.shutter), self._p(photo.exif.focal), stamp, 
+                            self._p(photo.description), self._p(photo.originalname), photo.checksum) 
+        else:
+            query = ("insert into lychee_photos " + 
+                    "(id, url, public, type, width, height, " + 
+                    "size, star, " + 
+                    "thumbUrl, album,iso, aperture, make, " + 
+                    "model, shutter, focal, takestamp, " + 
+                    "description, title, checksum, media_type) " + 
+                    "values " + 
+                    "({}, '{}', {}, '{}', {}, {}, " + 
+                    "'{}', {}, " +
+                    "'{}', '{}', '{}', '{}'," + 
+                    " '{}', " + 
+                    "'{}', '{}', '{}', '{}', " + 
+                    "'{}', '{}', '{}', 'video')").format(
+                            photo.id, photo.url, self.conf["publicAlbum"], self._p(photo.type), photo.width, photo.height, 
+                            photo.size, photo.star, 
+                            photo.thumbUrl, photo.albumid, "", "", "", 
+                            "", "", "", stamp, 
+                            self._p(photo.description), self._p(photo.originalname), photo.checksum)
         try:
             cur = self.db.cursor()
             res = cur.execute(query)

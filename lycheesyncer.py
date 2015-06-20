@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import subprocess
 import shutil
 import stat
 import traceback
@@ -58,6 +59,17 @@ class LycheeSyncer:
         ext = os.path.splitext(file)[-1].lower()
         return (ext in validimgext)
 
+    def isAVideo(self, file):
+        """
+        Determine if the filename passed is a video or not based on the file extension
+        Takes a string  as input (a file name)
+        Returns a boolean
+        """
+        validimgext =  ['.mp4', '.ogv', '.webm', '.flv']
+        ext = os.path.splitext(file)[-1].lower()
+        return (ext in validimgext)
+
+
     def albumExists(self, album):
         """
         Takes an album properties list  as input. At least the relpath sould be specified (relative albumpath)
@@ -102,15 +114,54 @@ class LycheeSyncer:
 
         destimage = os.path.join(destinationpath, destfile)
         try:
-            img = Image.open(photo.srcfullpath)
+            if photo.media_type == 'photo':
+                img = Image.open(photo.srcfullpath)
+            else:
+                url = os.path.splitext(photo.url)
+                img = Image.open(destinationpath + '/' + url[0] + '@original.jpg')
         except:
             print "ERROR ioerror (corrupted file?): " + photo.srcfullpath
             raise
-
+        
         img = img.crop((left, upper, right, lower))
         img.thumbnail(res, Image.ANTIALIAS)
+
+        #Composite the play icon
+        if photo.media_type == 'video':
+            iconsize = (res[0] / 4, res[1] / 4)
+            icon = Image.open('icon_play_overlay.png', 'r')
+            icon.thumbnail(iconsize, Image.ANTIALIAS)
+            w, h = icon.size
+            x = (res[0] / 2) - (iconsize[0] / 2)
+            y = (res[1] / 2) - (iconsize[1] / 2)
+            img.paste(icon, (x,y,x + w,y + h), icon)
+
         img.save(destimage, quality=99)
         return destimage
+
+    def makeThumbnailForVideo(self, photo):
+        """
+        Grabs a snapshot from the video and overlays the 
+        video icon on top of them
+        Parameters:
+        - photo: a valid LycheePhoto object
+        returns nothing
+        """
+        # compute destination path
+        destpath = os.path.join(self.conf["lycheepath"], "uploads", "thumb")
+        # insert @2x in big thumbnail file name
+        filesplit = os.path.splitext(photo.url)
+
+        command = ['avconv', '-itsoffset', '-4', '-i', photo.srcfullpath, '-vcodec', 'mjpeg', '-vframes', str('1'), '-an', '-f', 'rawvideo', '-s', str(photo.width) + 'x' + str(photo.height), destpath + '/' + filesplit[0] + '@original.jpg']
+        subprocess.call(command)
+
+        # set  thumbnail size
+        sizes = [(200, 200), (400, 400)]
+        destfiles = [filesplit[0] + '.jpg', ''.join([filesplit[0], "@2x.jpg"]).lower()]
+        # make thumbnails
+        photo.thumbnailfullpath = self.thumbIt(sizes[0], photo, destpath, destfiles[0])
+        photo.thumbnailx2fullpath = self.thumbIt(sizes[1], photo, destpath, destfiles[1])
+        os.remove(destpath + '/' + filesplit[0] + '@original.jpg')
 
     def makeThumbnail(self, photo):
         """
@@ -305,7 +356,7 @@ class LycheeSyncer:
             album['photos'] = []  # path relative to srcdir
 
             # if a there is at least one photo in the files
-            if any([self.isAPhoto(f) for f in files]):
+            if any([self.isAPhoto(f) or self.isAVideo(f) for f in files]):
                 album['path'] = root
 
                 # don't know what to do with theses photo
@@ -372,6 +423,35 @@ class LycheeSyncer:
                         except Exception:
                             print "ERROR could not add " + str(f) + " to album " + album['name']
                             traceback.print_exc()
+
+                    elif self.isAVideo(f):
+
+                        print "File: " + str(f) + " is a video"
+                        try:
+                            discoveredphotos += 1
+                            photo = LycheePhoto(self.conf, f, album, "video")
+
+                            if not(self.dao.photoExists(photo)):
+                                if self.conf['verbose']:
+                                    print "INFO: adding to lychee", os.path.join(root, f)
+                                # increment counter
+                                self.makeThumbnailForVideo(photo)
+                                res = self.addFileToAlbum(photo)
+                                if res:
+                                    importedphotos += 1
+                                # report
+                                if self.conf['verbose']:
+                                    if res:
+                                        album['photos'].append(photo)
+                                    else:
+                                        print "ERROR: while adding to lychee", os.path.join(root, f)
+                            else:
+                                if self.conf['verbose']:
+                                    print "WARN: photo already exists in lychee with same name or same checksum: ", photo.srcfullpath
+                        except Exception:
+                            print "ERROR could not add " + str(f) + " to album " + album['name']
+                            traceback.print_exc()
+
 
                 a = album.copy()
                 albums.append(a)

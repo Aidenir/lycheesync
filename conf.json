@@ -1,8 +1,8 @@
 {
-    "db":"lychee",
+    "db":"lycheetest",
     "dbUser":"lychee",
-    "dbPassword":"cheely",
-    "dbHost":"localhost",
+    "dbPassword":"lychee",
+    "dbHost":"database.local",
     "thumbQuality":80,
     "publicAlbum": 0
 }

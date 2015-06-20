@@ -1,6 +1,8 @@
 import time
 import hashlib
 import os
+import re
+import subprocess
 import mimetypes
 from PIL import Image
 from PIL.ExifTags import TAGS
@@ -77,6 +79,7 @@ class LycheePhoto:
     _sysdate = None
     systime = ""
     checksum = ""
+    media_type = "photo"
 
     def convert_sysdate(self, value):
         # check sysdate type
@@ -124,13 +127,14 @@ class LycheePhoto:
             sha1.update(f.read())
             self.checksum = sha1.hexdigest()
 
-    def __init__(self, conf, photoname, album):
+    def __init__(self, conf, photoname, album, media_type = "photo"):
         # Parameters storage
         self.conf = conf
         self.originalname = photoname
         self.originalpath = album['path']
         self.albumid = album['id']
         self.albumname = album['name']
+        self.media_type = media_type
 
         # if star in file name, photo is starred
         if ('star' in self.originalname) or ('cover' in self.originalname):
@@ -148,11 +152,14 @@ class LycheePhoto:
 
         ext = os.path.splitext(photoname)[1]
         self.url = ''.join([crypted, ext]).lower()
-        self.thumbUrl = self.url
+        self.thumbUrl = crypted + ".jpg"
 
         # src and dest fullpath
         self.srcfullpath = os.path.join(self.originalpath, self.originalname)
-        self.destfullpath = os.path.join(self.conf["lycheepath"], "uploads", "big", self.url)
+        if self.media_type == "photo":
+            self.destfullpath = os.path.join(self.conf["lycheepath"], "uploads", "big", self.url)
+        else:
+            self.destfullpath = os.path.join(self.conf["lycheepath"], "uploads", "video", self.url)
 
         # Generate file checksum
         self.__generateHash()
@@ -167,53 +174,64 @@ class LycheePhoto:
         self.systime = datetime.datetime.now().strftime('%H:%M:%S')
 
         # Exif Data Parsing
-        self.exif = ExifData()
-        try:
+        if self.media_type == "video":
+            command = ['avconv', '-i', self.srcfullpath, '-vstats']
+            sp = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = sp.communicate()
+            p = re.compile( "Video: ([^,]*), ([^,]*), ([0-9]{1,4})x([0-9]{1,4})" )
+            result = p.findall(err)
+            self.width = int(result[0][2])
+            self.height = int(result[0][3])
 
-            img = Image.open(self.srcfullpath)
-            w, h = img.size
-            self.width = float(w)
-            self.height = float(h)
-            if hasattr(img, '_getexif'):
-                exifinfo = img._getexif()
-                if exifinfo is not None:
-                    for tag, value in exifinfo.items():
-                        decode = TAGS.get(tag, tag)
-                        # print tag, decode, value
-                        # if decode != "MakerNote":
-                        #    print decode, value
-                        if decode == "Orientation":
-                            self.exif.orientation = value
-                        if decode == "Make":
-                            self.exif.make = value
-                        if decode == "MaxApertureValue":
-                            self.exif.aperture = value
-                        if decode == "FocalLength":
-                            self.exif.focal = value
-                        if decode == "ISOSpeedRatings":
-                            self.exif.iso = value
-                        if decode == "Model":
-                            self.exif.model = value
-                        if decode == "ExposureTime":
-                            self.exif.shutter = value
-                        if decode == "DateTime":
-                            try:
-                                self.exif._takedate = value.split(" ")[0]
-                                self._sysdate = self.exif.takedate
-                            except:
-                                print 'WARN invalid takedate: ' + str(value) + ' for ' + self.srcfullpath
+        elif self.media_type == "photo":
 
-                        if decode == "DateTime":
-                            try:
-                                self.exif.taketime = value.split(" ")[1]
-                                self.systime = self.exif.taketime
-                            except:
-                                print 'WARN invalid taketime: ' + str(value) + ' for ' + self.srcfullpath
+            self.exif = ExifData()
+            try:
 
-                    # TODO: Bad description sysdate is int
-                    self.description = str(self._sysdate) + " " + self.systime
-        except IOError:
-            print 'ERROR ioerror (corrupted ?): ' + self.srcfullpath
+                img = Image.open(self.srcfullpath)
+                w, h = img.size
+                self.width = float(w)
+                self.height = float(h)
+                if hasattr(img, '_getexif'):
+                    exifinfo = img._getexif()
+                    if exifinfo is not None:
+                        for tag, value in exifinfo.items():
+                            decode = TAGS.get(tag, tag)
+                            # print tag, decode, value
+                            # if decode != "MakerNote":
+                            #    print decode, value
+                            if decode == "Orientation":
+                                self.exif.orientation = value
+                            if decode == "Make":
+                                self.exif.make = value
+                            if decode == "MaxApertureValue":
+                                self.exif.aperture = value
+                            if decode == "FocalLength":
+                                self.exif.focal = value
+                            if decode == "ISOSpeedRatings":
+                                self.exif.iso = value
+                            if decode == "Model":
+                                self.exif.model = value
+                            if decode == "ExposureTime":
+                                self.exif.shutter = value
+                            if decode == "DateTime":
+                                try:
+                                    self.exif._takedate = value.split(" ")[0]
+                                    self._sysdate = self.exif.takedate
+                                except:
+                                    print 'WARN invalid takedate: ' + str(value) + ' for ' + self.srcfullpath
+
+                            if decode == "DateTime":
+                                try:
+                                    self.exif.taketime = value.split(" ")[1]
+                                    self.systime = self.exif.taketime
+                                except:
+                                    print 'WARN invalid taketime: ' + str(value) + ' for ' + self.srcfullpath
+
+                        # TODO: Bad description sysdate is int
+                        self.description = str(self._sysdate) + " " + self.systime
+            except IOError:
+                print 'ERROR ioerror (corrupted ?): ' + self.srcfullpath
 
     def __str__(self):
         res = ""
