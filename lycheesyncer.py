@@ -152,7 +152,7 @@ class LycheeSyncer:
         # insert @2x in big thumbnail file name
         filesplit = os.path.splitext(photo.url)
 
-        command = ['avconv', '-itsoffset', '-4', '-i', photo.srcfullpath, '-vcodec', 'mjpeg', '-vframes', str('1'), '-an', '-f', 'rawvideo', '-s', str(photo.width) + 'x' + str(photo.height), destpath + '/' + filesplit[0] + '@original.jpg']
+        command = ['ffmpeg', '-itsoffset', '-4', '-i', photo.srcfullpath, '-vcodec', 'mjpeg', '-vframes', str('1'), '-an', '-f', 'rawvideo', '-s', str(photo.width) + 'x' + str(photo.height), destpath + '/' + filesplit[0] + '@original.jpg']
         subprocess.call(command)
 
         # set  thumbnail size

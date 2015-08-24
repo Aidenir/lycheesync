@@ -124,6 +124,7 @@ class LycheePhoto:
     def __generateHash(self):
         sha1 = hashlib.sha1()
         with open(self.srcfullpath, 'rb') as f:
+            print self.srcfullpath
             sha1.update(f.read())
             self.checksum = sha1.hexdigest()
 
@@ -175,7 +176,7 @@ class LycheePhoto:
 
         # Exif Data Parsing
         if self.media_type == "video":
-            command = ['avconv', '-i', self.srcfullpath, '-vstats']
+            command = ['ffmpeg', '-i', self.srcfullpath, '-vstats']
             sp = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out, err = sp.communicate()
             p = re.compile( "Video: ([^,]*), ([^,]*), ([0-9]{1,4})x([0-9]{1,4})" )
